@@ -1,0 +1,19 @@
+{
+  "name": "codex-claude-desktop-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Codex 中文协调与 Claude Desktop Code 英文执行的本地 MCP 桥接",
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "pretest": "npm run build",
+    "test": "tsx --test test/*.test.ts",
+    "doctor": "node dist/main.js doctor",
+    "bridge:install": "node dist/main.js install",
+    "bridge:uninstall": "node dist/main.js uninstall",
+    "bridge:stop": "node dist/main.js stop"
+  },
+  "dependencies": { "@modelcontextprotocol/sdk": "^1.29.0", "zod": "^3.25.76", "smol-toml": "^1.4.2" },
+  "devDependencies": { "@types/node": "^24.0.0", "tsx": "^4.20.0", "typescript": "^5.9.0" }
+}

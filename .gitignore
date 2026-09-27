@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.bridge-local/
+*.bridge-backup-*
+.claude/settings.local.json
+.codex/config.toml
+.mcp.json
+examples/smoke-project/.claude/
+examples/smoke-project/.mcp.json
+
+artifacts/
+.env
+.env.*
