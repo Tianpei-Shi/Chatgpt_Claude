@@ -5,7 +5,7 @@ import { parse, stringify } from 'smol-toml';
 import { randomUUID } from 'node:crypto';
 
 const name = 'codex_claude_bridge';
-const events = ['SessionStart', 'Stop', 'StopFailure', 'PermissionRequest', 'SessionEnd'];
+const events = ['SessionStart', 'UserPromptSubmit', 'Stop', 'StopFailure', 'PermissionRequest', 'SessionEnd', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'Notification', 'Elicitation'];
 const main = resolve(dirname(fileURLToPath(import.meta.url)), '../dist/main.js');
 const json = (path: string) => existsSync(path) ? JSON.parse(readFileSync(path, 'utf8').replace(/^\uFEFF/, '')) : {};
 function paths(project: string) { return { mcp: join(project, '.mcp.json'), hooks: join(project, '.claude', 'settings.local.json'), codex: join(project, '.codex', 'config.toml') }; }
@@ -40,11 +40,12 @@ export function install(project: string, data: string) {
     const groups = hooks.hooks[event] ?? [];
     if (!Array.isArray(groups)) throw new Error(`已有 ${event} Hooks 格式无效`);
     const kept = groups.map((group: any) => ({ ...group, hooks: group.hooks.filter((hook: any) => !hookOwned(hook)) })).filter((group: any) => group.hooks.length);
-    kept.push({ hooks: [{ type: 'command', command: process.execPath, args: [main, 'hook', '--data', resolve(data), '--project', resolve(project)], timeout: 10 }] });
+    // 交互 Hook 最多等待五分钟；留出写回余量，其余观察事件仍快速返回。
+    kept.push({ hooks: [{ type: 'command', command: process.execPath, args: [main, 'hook', '--data', resolve(data), '--project', resolve(project)], timeout: ['PreToolUse', 'PermissionRequest', 'Elicitation'].includes(event) ? 330 : 10 }] });
     hooks.hooks[event] = kept;
   }
   persist(config);
-  return { installed: true, project: resolve(project), files: Object.values(config.p), data, next: '在 Codex 重新加载 MCP，并在 Claude 桌面 Code 模式打开或恢复此目录。首次信任与工具权限由客户端提示。' };
+  return { installed: true, project: resolve(project), files: Object.values(config.p), data, next: '在 Codex 重新加载 MCP，并在 Claude 桌面 Code 模式打开或恢复此目录。新建时可由 desktop-prepare 核对并确认目标目录信任；新提问由 Hook 转交协调端。' };
 }
 
 /** 不回滚整份旧配置，保留安装后用户新增的设置。 */

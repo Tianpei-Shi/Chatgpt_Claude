@@ -3,21 +3,23 @@ import { promisify } from 'node:util';
 import { statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { modelPattern, modelMatches } from './preferences.js';
 
 const run = promisify(execFile);
 export type DesktopResult = { status: string; model?: string; effort?: string; reason?: string; [key: string]: unknown };
 type UiRunner = (model: string, effort: string, project?: string) => Promise<DesktopResult>;
 
 /** 官方桌面协议只负责定位 Code 和目录；不把 prompt 参数误认为自动发送。 */
-export function codeLink(project: string) {
+export function codeLink(project: string, prompt?: string) {
   const path = resolve(project);
   if (!statSync(path).isDirectory()) throw new Error('项目必须是存在的目录');
   const url = new URL('claude://code/new');
   url.searchParams.set('folder', path);
+  if (prompt) url.searchParams.set('q', prompt);
   return url.toString();
 }
 
-async function launch(url: string) {
+export async function launch(url: string) {
   if (process.platform !== 'win32') throw new Error('桌面控制目前仅支持 Windows');
   // 编码后作为数据传入固定脚本，避免 URL/路径被 PowerShell 当成命令。
   const encoded = Buffer.from(url).toString('base64');
@@ -40,20 +42,21 @@ export async function openDesktop(project: string, opener = launch, allowUi = fa
 }
 
 /** UI 脚本只返回必要状态，不返回聊天正文、控件树或账户信息。 */
-async function ui(model: string, effort: string, project?: string): Promise<DesktopResult> {
+export async function ui(model: string, effort: string, project?: string, expectedPrompt?: string, trustWorkspace = false): Promise<DesktopResult> {
   if (process.platform !== 'win32') throw new Error('桌面控制目前仅支持 Windows');
   const script = fileURLToPath(new URL('../scripts/claude-desktop.ps1', import.meta.url));
   const { stdout } = await run('powershell.exe', ['-NoProfile', '-NonInteractive', '-File', script,
-    '-Model', model, '-Effort', effort, '-Project', project ?? ''], { windowsHide: true, timeout: 25000, maxBuffer: 65536 });
+    '-Model', model, '-Effort', effort, '-Project', project ?? '',
+    ...(expectedPrompt ? ['-ExpectedPrompt', expectedPrompt] : []), ...(trustWorkspace ? ['-TrustWorkspace'] : [])], { windowsHide: true, timeout: 25000, maxBuffer: 262144 });
   return JSON.parse(stdout.replace(/^\uFEFF/, '').trim());
 }
 
 export async function configureDesktop(model: string, effort: string, runner: UiRunner = ui, project?: string, allowUi = false) {
   if (!allowUi) return backgroundOnly();
-  if (!/^(Opus|Sonnet|Haiku) \d+(\.\d+)?$/.test(model)) throw new Error('模型必须是界面显示名称，例如 Opus 5.5');
+  if (!modelPattern.test(model)) throw new Error('模型必须是模型族或界面显示名称，例如 Sonnet');
   if (!['low', 'medium', 'high', 'xhigh', 'max'].includes(effort)) throw new Error('不支持的思考强度');
   const result = await runner(model, effort, project);
   // 即使适配器误报 configured，也必须核对实际读回的模型和强度。
-  if (result.status === 'configured' && (result.model !== model || result.effort !== effort)) throw new Error('桌面模型与思考强度核验失败');
+  if (result.status === 'configured' && (!modelMatches(model, result.model) || result.effort !== effort)) throw new Error('桌面模型与思考强度核验失败');
   return result;
 }

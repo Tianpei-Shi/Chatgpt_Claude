@@ -32,6 +32,7 @@ test('目录无效不启动，UI 未验证不允许声称模型生效', async ()
   const result = await configureDesktop('Opus 5.5', 'medium', async () => ({ status: 'needs_confirmation', reason: 'workspace_trust' }), undefined, true);
   assert.equal(result.status, 'needs_confirmation');
   await assert.rejects(configureDesktop('Opus 5.5; bad', 'medium', async () => assert.fail('不应执行'), undefined, true), /模型/);
+  await assert.rejects(configureDesktop('Sonnet', 'medium', async () => ({ status: 'configured', model: 'Sonnet', effort: 'medium' }), undefined, true), /核验/);
 });
 
 test('后台模式默认不启动桌面、不调用 UI 适配器，即使项目不存在也不尝试打开', async () => {

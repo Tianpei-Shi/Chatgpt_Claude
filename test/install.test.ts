@@ -16,6 +16,7 @@ test('配置安装幂等，卸载保留原工具和安装后的用户修改', t 
   install(dir, data); install(dir, data);
   const config = JSON.parse(readFileSync(join(dir, '.claude', 'settings.local.json'), 'utf8'));
   assert.equal(config.hooks.Stop.length, 2);
+  assert.equal(config.hooks.UserPromptSubmit.length, 1);
   config.extra = 'user-change';
   writeFileSync(join(dir, '.claude', 'settings.local.json'), JSON.stringify(config));
   assert.equal((parse(readFileSync(join(dir, '.codex', 'config.toml'), 'utf8')) as any).model, 'keep-model');
